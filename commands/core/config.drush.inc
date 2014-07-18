@@ -101,7 +101,7 @@ function config_drush_command() {
         'description' => 'Format for displaying proposed changes. Recognized values: list, diff. Defaults to list',
         'example-value' => 'list',
       ),
-      'force-uuid' => array(
+      'force-site-uuid' => array(
         'description' => 'By default import will fail if "system.site.uuid" value in database and in configuration source directory does not match. This option overwrites "system.site.uuid" value in database with value in configuration source directory. Defaults to false.',
       ),
     ),
@@ -367,6 +367,13 @@ function drush_config_import($source = NULL) {
     drush_print(implode("\n", $output));
   }
 
+  // In order for "force-site-uuid" option to be useful, UUID value in
+  // "system.site" configuration needs to be different in database and in source
+  // configuration directory.
+  if (drush_get_option('force-site-uuid') && !$config_comparer->validateSiteUuid()) {
+    drush_log(dt('The UUID value of config !name will be overridden with the value from the source configuration directory.', array('!name' => 'system.site')), 'warning');
+  }
+
   if (drush_confirm(dt('Import the listed configuration changes?'))) {
     return drush_op('_drush_config_import', $config_comparer);
   }
@@ -387,7 +394,29 @@ function _drush_config_import(StorageComparer $storage_comparer) {
   if ($config_importer->alreadyImporting()) {
     drush_log('Another request may be synchronizing configuration already.', 'warning');
   }
-  else{
+  else {
+    // Override UUID value in "system.site" configuration with the value from
+    // the source configuration directory if "force-site-uuid" option is given.
+    if (drush_get_option('force-site-uuid') && !$storage_comparer->validateSiteUuid()) {
+      $config_name = 'system.site';
+
+      // Check whether "system.site" configuration is available in source
+      // configuration directory.
+      if ($source_config = $storage_comparer->getSourceStorage()->read($config_name)) {
+        if (isset($source_config['uuid'])) {
+          // Set UUID value to configuration in database.
+          $config = Drupal::config($config_name)->set('uuid', $source_config['uuid']);
+
+          if ($config->save()) {
+            drush_log(dt('Config !name UUID has been overridden.', array('!name' => $config_name)), 'ok');
+          }
+        }
+      }
+      else {
+        drush_log(dt('Config !name does not exist in configuration source directory.', array('!name' => $config_name)), 'warning');
+      }
+    }
+
     try {
       $config_importer->import();
       drupal_flush_all_caches();
