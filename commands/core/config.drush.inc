@@ -101,6 +101,9 @@ function config_drush_command() {
         'description' => 'Format for displaying proposed changes. Recognized values: list, diff. Defaults to list',
         'example-value' => 'list',
       ),
+      'force-uuid' => array(
+        'description' => 'By default import will fail if "system.site.uuid" value in database and in configuration source directory does not match. This option overwrites "system.site.uuid" value in database with value in configuration source directory. Defaults to false.',
+      ),
     ),
     'core' => array('8+'),
     'aliases' => array('cim'),
